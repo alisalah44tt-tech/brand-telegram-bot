@@ -11,15 +11,36 @@ const bot = new TelegramBot(token, { polling: true });
 
 const CHANNEL_USERNAME = 'Pubg_Libya_Store';
 
+// ========================================
 // تخزين الحسابات
+// ========================================
+
 const accounts = [];
 
 let nextAccountNumber = 1;
 
+// ========================================
+// نظام التقييم
+// ========================================
+
+const ratings = [];
+
+// المستخدمون الذين قيّموا بالفعل
+const ratedUsers = new Set();
+
+// المستخدم الذي ينتظر كتابة ملاحظة
+const waitingForReview = new Set();
+
+// ========================================
 // تجميع صور الألبوم
+// ========================================
+
 const mediaGroups = new Map();
 
+// ========================================
 // أزرار البوت
+// ========================================
+
 const keyboard = {
   reply_markup: {
     keyboard: [
@@ -40,7 +61,14 @@ const keyboard = {
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(
     msg.chat.id,
-    `🔥 مرحبًا بك في بوت BRAND Libya
+    `🔥 مرحبًا بك في بوت BRAND Libya 🇱🇾
+
+🎮 كل خدمات PUBG في مكان واحد
+
+💎 شحن UC
+🛒 بيع وشراء الحسابات
+🎁 المسابقات والسحوبات
+📞 تواصل معنا في أي وقت
 
 👇 اختر الخدمة التي تريدها من الأزرار بالأسفل`,
     keyboard
@@ -94,7 +122,6 @@ async function sendSelectedAccount(chatId, account) {
     );
   }
 
-  // إذا عندنا صور محفوظة
   if (
     account.photos &&
     account.photos.length > 0
@@ -107,7 +134,6 @@ async function sendSelectedAccount(chatId, account) {
             media: photo
           };
 
-          // نضع بيانات الحساب على أول صورة فقط
           if (index === 0) {
             item.caption =
               `🧾 رقم الحساب: ${account.number}\n\n` +
@@ -118,13 +144,13 @@ async function sendSelectedAccount(chatId, account) {
         }
       );
 
-      // تيليجرام يسمح بحد أقصى 10 صور في الألبوم
       await bot.sendMediaGroup(
         chatId,
         media.slice(0, 10)
       );
 
       return;
+
     } catch (error) {
       console.log(
         'تعذر إرسال الصور كألبوم:',
@@ -133,7 +159,6 @@ async function sendSelectedAccount(chatId, account) {
     }
   }
 
-  // إذا ما فيش صور
   return bot.sendMessage(
     chatId,
     `🧾 رقم الحساب: ${account.number}
@@ -155,7 +180,6 @@ async function saveAccount(messages) {
       return;
     }
 
-    // ترتيب رسائل الألبوم
     messages.sort(
       (a, b) => a.message_id - b.message_id
     );
@@ -167,7 +191,6 @@ async function saveAccount(messages) {
       firstMessage.caption ||
       '';
 
-    // نتأكد أن المنشور خاص بببجي
     if (
       !text.includes('ببجي') &&
       !text.includes('بـبـجي') &&
@@ -176,7 +199,6 @@ async function saveAccount(messages) {
       return;
     }
 
-    // منع تكرار الحساب
     const alreadyExists = accounts.find(
       account =>
         account.messageId === firstMessage.message_id
@@ -186,11 +208,9 @@ async function saveAccount(messages) {
       return;
     }
 
-    // رقم الحساب
     const accountNumber =
       createAccountNumber();
 
-    // استخراج جميع الصور
     const photos = [];
 
     messages.forEach(message => {
@@ -223,14 +243,16 @@ async function saveAccount(messages) {
       `✅ تم حفظ الحساب ${accountNumber} | الصور: ${photos.length}`
     );
 
-    // إضافة رقم الحساب للمنشور
     if (!text.includes('🧾 رقم الحساب:')) {
+
       const newText =
         `🧾 رقم الحساب: ${accountNumber}\n\n` +
         text;
 
       try {
+
         if (firstMessage.caption !== undefined) {
+
           await bot.editMessageCaption(
             newText,
             {
@@ -239,7 +261,9 @@ async function saveAccount(messages) {
                 firstMessage.message_id
             }
           );
+
         } else if (firstMessage.text) {
+
           await bot.editMessageText(
             newText,
             {
@@ -253,18 +277,22 @@ async function saveAccount(messages) {
         account.text = newText;
 
       } catch (error) {
+
         console.log(
           'تعذر إضافة رقم الحساب للمنشور:',
           error.message
         );
+
       }
     }
 
   } catch (error) {
+
     console.log(
       '❌ خطأ أثناء حفظ الحساب:',
       error.message
     );
+
   }
 }
 
@@ -273,7 +301,9 @@ async function saveAccount(messages) {
 // ========================================
 
 bot.on('channel_post', async (msg) => {
+
   try {
+
     if (!msg.chat.username) return;
 
     if (
@@ -283,17 +313,15 @@ bot.on('channel_post', async (msg) => {
       return;
     }
 
-    // ====================================
-    // إذا المنشور عبارة عن ألبوم صور
-    // ====================================
-
     if (msg.media_group_id) {
 
       if (!mediaGroups.has(msg.media_group_id)) {
+
         mediaGroups.set(
           msg.media_group_id,
           []
         );
+
       }
 
       const group =
@@ -301,14 +329,13 @@ bot.on('channel_post', async (msg) => {
 
       group.push(msg);
 
-      // إلغاء المؤقت السابق
       if (group.timer) {
         clearTimeout(group.timer);
       }
 
-      // ننتظر حتى تصل كل صور الألبوم
       group.timer = setTimeout(
         async () => {
+
           const messages =
             mediaGroups.get(
               msg.media_group_id
@@ -321,6 +348,7 @@ bot.on('channel_post', async (msg) => {
           if (messages) {
             await saveAccount(messages);
           }
+
         },
         2000
       );
@@ -328,31 +356,167 @@ bot.on('channel_post', async (msg) => {
       return;
     }
 
-    // ====================================
-    // منشور عادي بدون ألبوم
-    // ====================================
-
     await saveAccount([msg]);
 
   } catch (error) {
+
     console.log(
       '❌ خطأ في منشور القناة:',
       error.message
     );
+
   }
+
 });
+
+// ========================================
+// حساب متوسط التقييم
+// ========================================
+
+function getRatingInfo() {
+
+  if (ratings.length === 0) {
+
+    return {
+      average: '0.0',
+      count: 0
+    };
+
+  }
+
+  const total =
+    ratings.reduce(
+      (sum, rating) => sum + rating,
+      0
+    );
+
+  const average =
+    total / ratings.length;
+
+  return {
+    average: average.toFixed(1),
+    count: ratings.length
+  };
+}
+
+// ========================================
+// النجوم حسب المتوسط
+// ========================================
+
+function getStars(average) {
+
+  const rounded =
+    Math.round(Number(average));
+
+  let stars = '';
+
+  for (let i = 1; i <= 5; i++) {
+
+    if (i <= rounded) {
+      stars += '⭐';
+    } else {
+      stars += '☆';
+    }
+
+  }
+
+  return stars;
+}
+
+// ========================================
+// عرض التقييم
+// ========================================
+
+function showRating(chatId) {
+
+  const info = getRatingInfo();
+
+  const stars =
+    getStars(info.average);
+
+  return bot.sendMessage(
+    chatId,
+    `⭐ تقييم خدمة BRAND | PUBG
+
+${stars}
+
+⭐ المتوسط: ${info.average} / 5
+👥 عدد التقييمات: ${info.count}
+
+👇 اختر تقييمك من 1 إلى 5 نجوم:`,
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '⭐',
+              callback_data: 'rate_1'
+            },
+            {
+              text: '⭐⭐',
+              callback_data: 'rate_2'
+            },
+            {
+              text: '⭐⭐⭐',
+              callback_data: 'rate_3'
+            }
+          ],
+          [
+            {
+              text: '⭐⭐⭐⭐',
+              callback_data: 'rate_4'
+            },
+            {
+              text: '⭐⭐⭐⭐⭐',
+              callback_data: 'rate_5'
+            }
+          ],
+          [
+            {
+              text: '📊 مشاهدة التقييمات',
+              callback_data: 'show_ratings'
+            }
+          ]
+        ]
+      }
+    }
+  );
+
+}
 
 // ========================================
 // رسائل المستخدمين
 // ========================================
 
 bot.on('message', async (msg) => {
+
   try {
+
     const chatId = msg.chat.id;
     const text = msg.text;
 
     if (!text || text === '/start') {
       return;
+    }
+
+    // ====================================
+    // إذا المستخدم ينتظر كتابة الملاحظة
+    // ====================================
+
+    if (waitingForReview.has(chatId)) {
+
+      waitingForReview.delete(chatId);
+
+      return bot.sendMessage(
+        chatId,
+        `❤️ شكراً لك على تقييمك!
+
+تم استلام ملاحظتك بنجاح.
+
+⭐ تقييمك محفوظ معنا.`,
+        keyboard
+      );
+
     }
 
     // ====================================
@@ -362,6 +526,7 @@ bot.on('message', async (msg) => {
     if (text === '🔥 آخر الحسابات') {
 
       if (accounts.length === 0) {
+
         return bot.sendMessage(
           chatId,
           `🔥 آخر الحسابات:
@@ -369,6 +534,7 @@ bot.on('message', async (msg) => {
 لا توجد حسابات منشورة بعد تشغيل البوت.`,
           keyboard
         );
+
       }
 
       const latest =
@@ -379,14 +545,17 @@ bot.on('message', async (msg) => {
       const buttons = [];
 
       latest.forEach(account => {
+
         buttons.push([
           {
             text:
               `🧾 ${account.number}`,
+
             callback_data:
               `account_${account.number.replace('#', '')}`
           }
         ]);
+
       });
 
       buttons.push([
@@ -407,6 +576,7 @@ bot.on('message', async (msg) => {
           }
         }
       );
+
     }
 
     // ====================================
@@ -414,6 +584,7 @@ bot.on('message', async (msg) => {
     // ====================================
 
     if (text === '🔍 البحث عن حساب') {
+
       return bot.sendMessage(
         chatId,
         `🔍 أرسل رقم الحساب الذي تريد البحث عنه.
@@ -427,6 +598,7 @@ bot.on('message', async (msg) => {
 #001`,
         keyboard
       );
+
     }
 
     // ====================================
@@ -434,6 +606,7 @@ bot.on('message', async (msg) => {
     // ====================================
 
     if (text === '📋 طلب نشر حساب') {
+
       return bot.sendMessage(
         chatId,
         `📋 طلب نشر حساب
@@ -445,6 +618,7 @@ bot.on('message', async (msg) => {
 @natoo_06`,
         keyboard
       );
+
     }
 
     // ====================================
@@ -452,9 +626,10 @@ bot.on('message', async (msg) => {
     // ====================================
 
     if (text === '💎 شحن UC والألعاب') {
-  return bot.sendMessage(
-    chatId,
-    `🎮 شحن شدات PUBG
+
+      return bot.sendMessage(
+        chatId,
+        `🎮 شحن شدات PUBG
 
 🟢📱 المدار الجديد
 الشحن عن طريق رصيد المدار:
@@ -483,27 +658,23 @@ bot.on('message', async (msg) => {
 • 1800 شدة — 255 د.ل
 • 3850 شدة — 500 د.ل
 
-🔥 توجد باقات أعلى وتوفير عدد حسب الطلب.
+🔥 توجد باقات أعلى وتوفير حسب الطلب.
 
 📞 للتفاصيل والتواصل:
 @natoo_06`,
-    keyboard
-  );
+        keyboard
+      );
+
     }
-  
-    
-  
 
     // ====================================
     // تقييم الخدمة
     // ====================================
 
     if (text === '⭐ تقييم الخدمة') {
-      return bot.sendMessage(
-        chatId,
-        `⭐ أرسل تقييمك للخدمة من 1 إلى 5، مع ملاحظتك إن وجدت.`,
-        keyboard
-      );
+
+      return showRating(chatId);
+
     }
 
     // ====================================
@@ -511,6 +682,7 @@ bot.on('message', async (msg) => {
     // ====================================
 
     if (text === '📞 التواصل مع الإدارة') {
+
       return bot.sendMessage(
         chatId,
         `📞 للتواصل مع الإدارة:
@@ -519,6 +691,7 @@ bot.on('message', async (msg) => {
 👤 @natoo_06`,
         keyboard
       );
+
     }
 
     // ====================================
@@ -526,6 +699,7 @@ bot.on('message', async (msg) => {
     // ====================================
 
     if (text === '🎁 المسابقات والسحوبات') {
+
       return bot.sendMessage(
         chatId,
         `🎁 المسابقات والسحوبات
@@ -533,6 +707,7 @@ bot.on('message', async (msg) => {
 تابع القناة لمعرفة آخر المسابقات والسحوبات.`,
         keyboard
       );
+
     }
 
     // ====================================
@@ -543,10 +718,12 @@ bot.on('message', async (msg) => {
       findAccountByNumber(text);
 
     if (accountByNumber) {
+
       return sendSelectedAccount(
         chatId,
         accountByNumber
       );
+
     }
 
     // ====================================
@@ -560,17 +737,21 @@ bot.on('message', async (msg) => {
 
       const results =
         accounts.filter(account => {
+
           return (
             account.number
               .toLowerCase()
               .includes(search) ||
+
             account.text
               .toLowerCase()
               .includes(search)
           );
+
         });
 
       if (results.length === 0) {
+
         return bot.sendMessage(
           chatId,
           `❌ لم يتم العثور على حساب مطابق.
@@ -580,30 +761,34 @@ bot.on('message', async (msg) => {
 #001`,
           keyboard
         );
+
       }
 
-      // حساب واحد
       if (results.length === 1) {
+
         return sendSelectedAccount(
           chatId,
           results[0]
         );
+
       }
 
-      // أكثر من حساب
       const buttons = [];
 
       results
         .slice(0, 10)
         .forEach(account => {
+
           buttons.push([
             {
               text:
                 `🧾 ${account.number}`,
+
               callback_data:
                 `account_${account.number.replace('#', '')}`
             }
           ]);
+
         });
 
       return bot.sendMessage(
@@ -617,43 +802,186 @@ bot.on('message', async (msg) => {
           }
         }
       );
+
     }
 
   } catch (error) {
+
     console.log(
       '❌ خطأ في رسالة المستخدم:',
       error.message
     );
+
   }
+
 });
 
 // ========================================
-// أزرار الحسابات
+// أزرار الحسابات + التقييم
 // ========================================
 
 bot.on('callback_query', async (query) => {
+
   try {
+
     const chatId =
       query.message.chat.id;
 
-    const data = query.data;
+    const data =
+      query.data;
 
     await bot.answerCallbackQuery(
       query.id
     );
 
+    // ====================================
     // القائمة الرئيسية
+    // ====================================
+
     if (data === 'main_menu') {
+
       return bot.sendMessage(
         chatId,
-        `🔥 مرحبًا بك في بوت BRAND Libya
+        `🔥 مرحبًا بك في بوت BRAND Libya 🇱🇾
 
 👇 اختر الخدمة التي تريدها من الأزرار بالأسفل`,
         keyboard
       );
+
     }
 
+    // ====================================
+    // عرض التقييمات
+    // ====================================
+
+    if (data === 'show_ratings') {
+
+      const info =
+        getRatingInfo();
+
+      const stars =
+        getStars(info.average);
+
+      return bot.sendMessage(
+        chatId,
+        `📊 تقييم BRAND | PUBG
+
+${stars}
+
+⭐ المتوسط: ${info.average} / 5
+👥 عدد التقييمات: ${info.count}
+
+الحد الأقصى للتقييم: ⭐⭐⭐⭐⭐`,
+        keyboard
+      );
+
+    }
+
+    // ====================================
+    // تقييم من 1 إلى 5
+    // ====================================
+
+    if (data.startsWith('rate_')) {
+
+      const rating =
+        parseInt(
+          data.replace('rate_', ''),
+          10
+        );
+
+      if (
+        isNaN(rating) ||
+        rating < 1 ||
+        rating > 5
+      ) {
+
+        return bot.sendMessage(
+          chatId,
+          `❌ التقييم يجب أن يكون من 1 إلى 5 نجوم.`,
+          keyboard
+        );
+
+      }
+
+      // منع التقييم أكثر من مرة
+      if (ratedUsers.has(chatId)) {
+
+        const info =
+          getRatingInfo();
+
+        return bot.sendMessage(
+          chatId,
+          `⚠️ أنت قيّمت الخدمة مسبقاً.
+
+⭐ المتوسط الحالي: ${info.average} / 5
+👥 عدد التقييمات: ${info.count}`,
+          keyboard
+        );
+
+      }
+
+      ratings.push(rating);
+
+      ratedUsers.add(chatId);
+
+      const info =
+        getRatingInfo();
+
+      return bot.sendMessage(
+        chatId,
+        `❤️ شكراً لك على تقييمك!
+
+${'⭐'.repeat(rating)}
+
+تم تسجيل تقييمك بنجاح.
+
+⭐ المتوسط الحالي: ${info.average} / 5
+👥 عدد التقييمات: ${info.count}
+
+هل تريد إضافة ملاحظة؟`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '📝 إضافة ملاحظة',
+                  callback_data: 'add_review'
+                }
+              ],
+              [
+                {
+                  text: '🏠 القائمة الرئيسية',
+                  callback_data: 'main_menu'
+                }
+              ]
+            ]
+          }
+        }
+      );
+
+    }
+
+    // ====================================
+    // إضافة ملاحظة
+    // ====================================
+
+    if (data === 'add_review') {
+
+      waitingForReview.add(chatId);
+
+      return bot.sendMessage(
+        chatId,
+        `📝 اكتب ملاحظتك الآن:
+
+رأيك يساعدنا على تحسين الخدمة ❤️`
+      );
+
+    }
+
+    // ====================================
     // اختيار حساب
+    // ====================================
+
     if (data.startsWith('account_')) {
 
       const number =
@@ -666,25 +994,31 @@ bot.on('callback_query', async (query) => {
         findAccountByNumber(number);
 
       if (!account) {
+
         return bot.sendMessage(
           chatId,
           `❌ هذا الحساب غير موجود.`,
           keyboard
         );
+
       }
 
       return sendSelectedAccount(
         chatId,
         account
       );
+
     }
 
   } catch (error) {
+
     console.log(
       '❌ خطأ في الزر:',
       error.message
     );
+
   }
+
 });
 
 // ========================================
@@ -692,11 +1026,17 @@ bot.on('callback_query', async (query) => {
 // ========================================
 
 bot.on('polling_error', error => {
+
   console.log(
     '❌ Polling Error:',
     error.message
   );
+
 });
+
+// ========================================
+// تشغيل البوت
+// ========================================
 
 console.log(
   '================================'
@@ -709,6 +1049,10 @@ console.log(
 console.log(
   '📡 القناة:',
   CHANNEL_USERNAME
+);
+
+console.log(
+  '⭐ نظام التقييم: 1 - 5 نجوم'
 );
 
 console.log(
